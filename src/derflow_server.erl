@@ -2,7 +2,7 @@
 -behaviour(gen_server).
 
 -export([start_link/0, code_change/3, terminate/2,handle_info/2]).
--export([bind/3,  wait/1, read/1, declare/0, execute_and_put/4]).
+-export([bind/3,  bind/2, wait/1, read/1, declare/0, execute_and_put/4, put/3]).
 -export([init/1, handle_call/3, handle_cast/2]).
 
 -record(state, {clock}).
@@ -14,7 +14,7 @@ start_link() ->
 
 init(_Args) ->
 	io:format("Init called~n"),
-    	ets:new(dvstore, [set, named_table]),
+    	ets:new(dvstore, [set, named_table, public, {write_concurrency, true}]),
     	{ok, #state{clock=0}}.
 
 declare() ->
@@ -26,6 +26,8 @@ declare() ->
 bind(Id, F, Arg) ->
     gen_server:call(?MODULE, {bind, Id, F, Arg}).
 
+bind(Id, Value) ->
+    gen_server:call(?MODULE, {bind, Id, Value}).
 %bind(V) ->
 %    gen_server:call(?MODULE, {bind, V}).
 	
@@ -42,8 +44,8 @@ read(X) ->
 
 handle_call({declare}, _From, State) ->
     	Clock = State#state.clock +1,
-    	V = #dv{value=nil, next=nil},
-	ets:insert(dvstore, Clock, V),
+    	V = #dv{value=empty, next=empty},
+	ets:insert(dvstore, {Clock, V}),
    	{reply, {id, Clock}, State#state{clock=Clock}};
 
 %handle_call({bind, V}, _From, State) ->
@@ -60,12 +62,19 @@ handle_call({declare}, _From, State) ->
 handle_call({bind,Id, F, Arg}, _From, State) ->
     io:format("Bind request~n"),
     Next = State#state.clock+1,
+    ets:insert(dvstore, {Next, #dv{value=empty, next=empty}}),
     spawn(derflow_server, execute_and_put, [F, Arg, Next, Id]),
     {reply, {id, Next}, State#state{clock=Next}};
 
+handle_call({bind,Id, Value}, _From, State) ->
+    io:format("Bind request~n"),
+    Next = State#state.clock+1,
+    ets:insert(dvstore, {Next, #dv{value=empty, next=empty}}),
+    spawn(derflow_server, put, [Value, Next, Id]),
+    {reply, {id, Next}, State#state{clock=Next}};
 %%%What if the Key does not exist in the map?%%%
 handle_call({read,X}, From, State) ->
-	V = ets:lookup(dvstore, X),
+	[{_Key,V}] = ets:lookup(dvstore, X),
         Value = V#dv.value,
 	Bounded = V#dv.bounded,
 	%%%Need to distinguish that value is not calculated or is the end of a list%%%
@@ -75,7 +84,7 @@ handle_call({read,X}, From, State) ->
 	 WT = lists:append(V#dv.waitingThreads, [From]),
 	 V1 = V#dv{waitingThreads=WT},
 	 ets:delete(dvstore, X),
-	 ets:insert(dvstore, X, V1),
+	 ets:insert(dvstore, {X, V1}),
          {noreply, State}
 	end;
 
@@ -86,12 +95,19 @@ handle_call({wait, _X}, _From, State) ->
 handle_cast({_}, State) ->
     {noreply, State}.
 
+put(Value, Next, Key) ->
+	[{_Key,V}] = ets:lookup(dvstore, Key),
+	Threads = V#dv.waitingThreads,
+	V1 = #dv{value= Value, next =Next, bounded= true},
+	ets:insert(dvstore, {Key, V1}),
+	replyToAll(Threads, Value, Next).
+
 execute_and_put(F, Arg, Next, Key) ->
-	V = ets:lookup(dvstore, Key),
+	[{_Key,V}] = ets:lookup(dvstore, Key),
 	Threads = V#dv.waitingThreads,
 	Value = F(Arg),
-	V = #dv{value= Value, next =Next, bounded= true},
-	ets:insert(dvstore, {Key, V}),
+	V1 = #dv{value= Value, next =Next, bounded= true},
+	ets:insert(dvstore, {Key, V1}),
 	replyToAll(Threads, Value, Next).
 
 replyToAll([], _Value, _Next) ->
