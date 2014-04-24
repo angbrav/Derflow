@@ -6,9 +6,12 @@
 	 bind/2,
 	 bind/3,
 	 read/1,
+	 lazyDeclare/0,
 	 declare/0,
 	 thread/3,
 	 get_stream/1,
+	 byNeed/2,
+	 byNeed/3,
 	 async_print_stream/1]).
 start(normal, _Args) ->
     derflow_sup:start_link().
@@ -22,11 +25,20 @@ bind(Id, Value) ->
 bind(Id, Function, Args) ->
     derflow_server:bind(Id, Function, Args).
 
+byNeed(Id, Value) ->
+    derflow_server:byNeed(Id, Value).
+
+byNeed(Id, Function, Args) ->
+    derflow_server:byNeed(Id, Function, Args).
+
 read(Id) ->
     derflow_server:read(Id).
 
 declare() ->
     derflow_server:declare().
+
+lazyDeclare() ->
+    derflow_server:lazyDeclare().
 
 thread(Module, Function, Args) ->
     spawn(Module, Function, Args).
@@ -39,7 +51,7 @@ async_print_stream(Stream)->
     case read(Stream) of
 	{nil, _} -> {ok, stream_read};
 	{Value, Next} -> 
-	    io:format("~w~n",[Value]),
+	    io:format("Value of stream: ~w~n",[Value]),
 	    async_print_stream(Next)
     end.
     
