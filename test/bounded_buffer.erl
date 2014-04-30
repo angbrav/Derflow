@@ -4,7 +4,7 @@
 test1() ->
     {id, S1}=derflow:lazyDeclare(),
     derflow:thread(bounded_buffer,producer,[0,10,S1]),
-    consumer(S1, fun(X) -> X*2 end, 5).
+    consumer(S1, fun(X) -> X*2 end).
     %{id, S2}=derflow:lazyDeclare(), 
     %buffer(S1, 4, S2),
     %derflow:thread(bounded_buffer,test_consumer,[S2]).
