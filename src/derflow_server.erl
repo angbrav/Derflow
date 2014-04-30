@@ -102,7 +102,7 @@ handle_call({byNeed,Id, Value}, From, State) ->
 	ObjectValue = executeLazy(Id,V1),
 	replyToAll(WaitingThreads,ObjectValue, Next),
 	{reply, {id, Next}, State#state{clock = Next}};
-	true ->
+	_ ->
     	putLazy(Value, Next, Id, From),
 	{noreply, State#state{clock=Next}}
     end;
