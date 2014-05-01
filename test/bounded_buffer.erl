@@ -1,24 +1,23 @@
 -module(bounded_buffer).
--export([test1/0, producer/3, buffer/3, consumer/2]).
+-export([test1/0, test2/0, producer/3, buffer/3, consumer/2]).
 
 test1() ->
-    {id, S1}=derflow:lazyDeclare(),
+    {id, S1}=derflow:declare(),
     derflow:thread(bounded_buffer,producer,[0,10,S1]),
+    {id, S2}=derflow:declare(),
+    derflow:thread(bounded_buffer,buffer, [S1,2,S2]),
+    consumer(S2, fun(X) -> X*2 end).
+
+test2() ->
+    {id, S1} = derflow:lazyDeclare(),
+    derflow:thread(bounded_buffer,producer,[0,5,S1]),
     consumer(S1, fun(X) -> X*2 end).
-    %{id, S2}=derflow:lazyDeclare(), 
-    %buffer(S1, 4, S2),
-    %derflow:thread(bounded_buffer,test_consumer,[S2]).
-    %test_consumer(S1).
-	%derflow:thread(bounded_buffer,test_comsumer,[S1,fun(X) -> X + 5 end,S2]),
-    %derflow:async_print_stream(S2).
-    %L = derflow:get_stream(S2),
-    %L.
-    %io:format("Output: ~w~n",[L]).
-    %S2.
 
 producer(Init, N, Output) ->
     if (N>0) ->
-        {id, Next} = derflow:byNeed(Output, Init),
+        derflow:waitNeeded(Output),
+	{id,Next} = derflow:bind(Output,Init),
+	io:format("Prod:Bound for ~w next ~w Produced~w ~n",[Output, Next, 11-N]),
         producer(Init + 1, N-1,  Next);
     true ->
         derflow:bind(Output, nil)
@@ -26,14 +25,18 @@ producer(Init, N, Output) ->
 
 loop(S1, S2, End) ->
     derflow:waitNeeded(S2),
-    {Value, S1Next} = derflow:read(S1),
-    {Value, S2Next} = derflow:bind(S2, Value),
-    {id, EndNext} = derflow:wait(End),
-    loop(S1Next, S2Next, EndNext).    
-    
+    {Value1, S1Next} = derflow:read(S1),
+    {id, S2Next} = derflow:bind(S2, Value1),
+    io:format("Buff:Bound for consumer ~w-> ~w ~w~n",[S1,S2,Value1]),
+    case derflow:read(End) of {nil, _} ->
+	loop(S1Next, S2Next, End);
+	{_V,EndNext} ->
+       loop(S1Next, S2Next, EndNext)    
+    end.
 
 buffer(S1, Size, S2) ->
-    End = drop_list(S1, Size).
+    End = drop_list(S1, Size),
+    io:format("Buff:End of list ~w ~n",[End]),
     loop(S1, S2, End).
 
 drop_list(S, Size) ->
@@ -47,19 +50,11 @@ drop_list(S, Size) ->
 consumer(S2,F) ->
     case derflow:read(S2) of
 	{nil, _} ->
-	   io:format("Reading end~n");
+	   io:format("Cons:Reading end~n");
 	{Value, Next} ->
-	   io:format("Consume ~w, Get ~w ~n",[Value, F(Value)]),
-	   timer:sleep(1000),
+	   io:format("Cons:Id ~w Consume ~w, Get ~w, Next~w ~n",[S2,Value, F(Value),Next]),
+	   %timer:sleep(1000),
 	   consumer(Next, F)
     end.
 
 
-%consumer(S1, F, S2) ->
-%    case derflow:read(S1) of
-%        {nil, _} ->
-%            derflow:bind(S2, nil);
-%        {Value, Next} ->
-%            {id, NextOutput} = derflow:byNeed(S2, F, Value),
-%            consumer(Next, F, NextOutput)
-%    end.

@@ -6,12 +6,12 @@
 	 bind/2,
 	 bind/3,
 	 read/1,
-	 lazyDeclare/0,
 	 declare/0,
 	 thread/3,
 	 get_stream/1,
 	 byNeed/2,
 	 byNeed/3,
+	 waitNeeded/1,
 	 async_print_stream/1]).
 start(normal, _Args) ->
     derflow_sup:start_link().
@@ -31,14 +31,14 @@ byNeed(Id, Value) ->
 byNeed(Id, Function, Args) ->
     derflow_server:byNeed(Id, Function, Args).
 
+waitNeeded(Id) ->
+    derflow_server:waitNeeded(Id).
+
 read(Id) ->
     derflow_server:read(Id).
 
 declare() ->
     derflow_server:declare().
-
-lazyDeclare() ->
-    derflow_server:lazyDeclare().
 
 thread(Module, Function, Args) ->
     spawn(Module, Function, Args).
