@@ -2,15 +2,18 @@
 -export([test1/0, producer/3, consumer/3]).
 
 test1() ->
-    {id, S1}=derflow:declare(),
-    derflow:thread(prod_cons,producer,[0,10,S1]),
-    {id, S2}=derflow:declare(),
-    derflow:thread(prod_cons,consumer,[S1,fun(X) -> X + 5 end,S2]),
-    derflow:async_print_stream(S2).
-    %L = derflow:get_stream(S2),
+    % create a variable Stream1 and have a producer write to it
+    {id, Stream1}=derflow:declare(),
+    derflow:thread(prod_cons,producer,[0,10,Stream1]),
+
+    % create a variable Stream2 and write transformations of values read from Stream1
+    {id, Stream2}=derflow:declare(),
+    derflow:thread(prod_cons,consumer,[Stream1,fun(X) -> X + 5 end,Stream2]),
+    derflow:async_print_stream(Stream2).
+    %L = derflow:get_stream(Stream2),
     %L.
     %io:format("Output: ~w~n",[L]).
-    %S2.
+    %Stream2.
 
 producer(Init, N, Output) ->
     if (N>0) ->
@@ -21,11 +24,11 @@ producer(Init, N, Output) ->
     derflow:bind(Output, nil)
     end.
 
-consumer(S1, F, S2) ->
-    case derflow:read(S1) of
+consumer(InStream, F, OutStream) ->
+    case derflow:read(InStream) of
     {nil, _} ->
-        derflow:bind(S2, nil);
+        derflow:bind(OutStream, nil);
     {Value, Next} ->
-        {id, NextOutput} = derflow:bind(S2, F, Value),
+        {id, NextOutput} = derflow:bind(OutStream, F, Value),
         consumer(Next, F, NextOutput)
     end.
