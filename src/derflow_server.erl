@@ -8,6 +8,10 @@
 -record(state, {clock}).
 -record(dv, {value, next, waitingThreads = [], creator, lazy=false,bounded = false}). 
 
+
+%%% API functions
+
+
 start_link() ->
     io:format("Server running~n"),
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -17,25 +21,49 @@ init(_Args) ->
         ets:new(dvstore, [set, named_table, public, {write_concurrency, true}]),
         {ok, #state{clock=0}}.
 
+
+% declare a new variable
+% returns the new variable's Id, an Erlang term
 declare() ->
     gen_server:call(?MODULE, {declare}).
 
 
+% bind a function result to a variable
+% Id: the variable id provided by declare/0
+% F: the function to execute
+% Arg: function arguments (TODO: what should they look like? why not just put in a fun)
 bind(Id, F, Arg) ->
     gen_server:call(?MODULE, {bind, Id, F, Arg}).
 
+
+% bind the variable Id to Value
+% Id: the variable id provided by declare/0
+% Value: an erlang term
 bind(Id, Value) ->
     gen_server:call(?MODULE, {bind, Id, Value}).
 
+
+% registers the calling process as wanting a notification when variable Id is bound
+% Id: the variable id provided by declare/0
 waitNeeded(Id) ->
     gen_server:call(?MODULE, {waitNeeded, Id}).
 
-    
+% TODO: what's this for
+% TODO: unimplemented?
 wait(X) ->
     gen_server:call(?MODULE, {wait, X}).
 
+
+% read dataflow variable X; block until bound if not yet bound
+% TODO: is X the same as Id from declare ? rename?
 read(X) ->
     gen_server:call(?MODULE, {read, X}).
+
+
+%%% end API functions
+
+
+
 
 handle_call({declare}, _From, State) ->
         Clock = State#state.clock +1,
@@ -74,31 +102,33 @@ handle_call({waitNeeded, Id}, From, State) ->
         {noreply, State}
     end;
 
-%%%What if the Key does not exist in the map?%%%
+%%% TODO: What if the Key does not exist in the map?%%%
 handle_call({read,X}, From, State) ->
     [{_Key,V}] = ets:lookup(dvstore, X),
-        Value = V#dv.value,
+    Value = V#dv.value,
     Bounded = V#dv.bounded,
     Creator = V#dv.creator,
     Lazy = V#dv.lazy,
-    %%%Need to distinguish that value is not calculated or is the end of a list%%%
+    %%% TODO: Need to distinguish that value is not calculated or is the end of a list%%%
     if Bounded == true ->
       {reply, {Value, V#dv.next}, State};
-     true ->
-      if Lazy == true ->
-        WT = lists:append(V#dv.waitingThreads, [From]),
+    true ->
+        if Lazy == true ->
+            WT = lists:append(V#dv.waitingThreads, [From]),
                 V1 = V#dv{waitingThreads=WT},
                 ets:insert(dvstore, {X, V1}),
-        gen_server:reply(Creator, ok),
-        {noreply, State};
-      true ->
-        WT = lists:append(V#dv.waitingThreads, [From]),
-        V1 = V#dv{waitingThreads=WT},
-        ets:insert(dvstore, {X, V1}),
+                gen_server:reply(Creator, ok),
+                {noreply, State};
+        true ->
+            WT = lists:append(V#dv.waitingThreads, [From]),
+            V1 = V#dv{waitingThreads=WT},
+            ets:insert(dvstore, {X, V1}),
             {noreply, State}
-      end
+        end
     end;
 
+
+% TODO: unimplemented?
 handle_call({wait, _X}, _From, State) ->
    %_V = wait_for_value(X, State#state.kv),
    {reply, {ok}, State}.
