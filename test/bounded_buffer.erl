@@ -16,8 +16,8 @@ test2() ->
 producer(Init, N, Output) ->
     if (N>0) ->
         derflow:waitNeeded(Output),
-	{id,Next} = derflow:bind(Output,Init),
-	io:format("Prod:Bound for ~w next ~w Produced~w ~n",[Output, Next, 11-N]),
+  {id,Next} = derflow:bind(Output,Init),
+  io:format("Prod:Bound for ~w next ~w Produced~w ~n",[Output, Next, 11-N]),
         producer(Init + 1, N-1,  Next);
     true ->
         derflow:bind(Output, nil)
@@ -29,8 +29,8 @@ loop(S1, S2, End) ->
     {id, S2Next} = derflow:bind(S2, Value1),
     io:format("Buff:Bound for consumer ~w-> ~w ~w~n",[S1,S2,Value1]),
     case derflow:read(End) of {nil, _} ->
-	loop(S1Next, S2Next, End);
-	{_V,EndNext} ->
+  loop(S1Next, S2Next, End);
+  {_V,EndNext} ->
        loop(S1Next, S2Next, EndNext)    
     end.
 
@@ -41,20 +41,20 @@ buffer(S1, Size, S2) ->
 
 drop_list(S, Size) ->
     if Size == 0 ->
-	S;
+  S;
       true ->
-       	{_Value,Next}=derflow:read(S),
-    	drop_list(Next, Size-1)
+        {_Value,Next}=derflow:read(S),
+      drop_list(Next, Size-1)
     end.
 
 consumer(S2,F) ->
     case derflow:read(S2) of
-	{nil, _} ->
-	   io:format("Cons:Reading end~n");
-	{Value, Next} ->
-	   io:format("Cons:Id ~w Consume ~w, Get ~w, Next~w ~n",[S2,Value, F(Value),Next]),
-	   %timer:sleep(1000),
-	   consumer(Next, F)
+  {nil, _} ->
+     io:format("Cons:Reading end~n");
+  {Value, Next} ->
+     io:format("Cons:Id ~w Consume ~w, Get ~w, Next~w ~n",[S2,Value, F(Value),Next]),
+     %timer:sleep(1000),
+     consumer(Next, F)
     end.
 
 

@@ -13,9 +13,9 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init(_Args) ->
-	io:format("Init called~n"),
-    	ets:new(dvstore, [set, named_table, public, {write_concurrency, true}]),
-    	{ok, #state{clock=0}}.
+    io:format("Init called~n"),
+        ets:new(dvstore, [set, named_table, public, {write_concurrency, true}]),
+        {ok, #state{clock=0}}.
 
 declare() ->
     gen_server:call(?MODULE, {declare}).
@@ -30,7 +30,7 @@ bind(Id, Value) ->
 waitNeeded(Id) ->
     gen_server:call(?MODULE, {waitNeeded, Id}).
 
-	
+    
 wait(X) ->
     gen_server:call(?MODULE, {wait, X}).
 
@@ -38,10 +38,10 @@ read(X) ->
     gen_server:call(?MODULE, {read, X}).
 
 handle_call({declare}, _From, State) ->
-    	Clock = State#state.clock +1,
-    	V = #dv{value=empty, next=empty},
-	ets:insert(dvstore, {Clock, V}),
-   	{reply, {id, Clock}, State#state{clock=Clock}};
+        Clock = State#state.clock +1,
+        V = #dv{value=empty, next=empty},
+    ets:insert(dvstore, {Clock, V}),
+    {reply, {id, Clock}, State#state{clock=Clock}};
 
 handle_call({next, Id}, _From, State)->
     io:format("Requesting for next~w~n",[Id]),
@@ -70,34 +70,34 @@ handle_call({waitNeeded, Id}, From, State) ->
     case V#dv.waitingThreads of [_H|_T] ->
         {reply, ok, State};
         _ ->
-	ets:insert(dvstore, {Id, V#dv{lazy=true, creator=From}}),
+    ets:insert(dvstore, {Id, V#dv{lazy=true, creator=From}}),
         {noreply, State}
     end;
 
 %%%What if the Key does not exist in the map?%%%
 handle_call({read,X}, From, State) ->
-	[{_Key,V}] = ets:lookup(dvstore, X),
+    [{_Key,V}] = ets:lookup(dvstore, X),
         Value = V#dv.value,
-	Bounded = V#dv.bounded,
-	Creator = V#dv.creator,
-	Lazy = V#dv.lazy,
-	%%%Need to distinguish that value is not calculated or is the end of a list%%%
-	if Bounded == true ->
-	  {reply, {Value, V#dv.next}, State};
-	 true ->
-	  if Lazy == true ->
-		WT = lists:append(V#dv.waitingThreads, [From]),
+    Bounded = V#dv.bounded,
+    Creator = V#dv.creator,
+    Lazy = V#dv.lazy,
+    %%%Need to distinguish that value is not calculated or is the end of a list%%%
+    if Bounded == true ->
+      {reply, {Value, V#dv.next}, State};
+     true ->
+      if Lazy == true ->
+        WT = lists:append(V#dv.waitingThreads, [From]),
                 V1 = V#dv{waitingThreads=WT},
                 ets:insert(dvstore, {X, V1}),
-	  	gen_server:reply(Creator, ok),
-		{noreply, State};
-	  true ->
-	  	WT = lists:append(V#dv.waitingThreads, [From]),
-	  	V1 = V#dv{waitingThreads=WT},
-	  	ets:insert(dvstore, {X, V1}),
-          	{noreply, State}
-	  end
-	end;
+        gen_server:reply(Creator, ok),
+        {noreply, State};
+      true ->
+        WT = lists:append(V#dv.waitingThreads, [From]),
+        V1 = V#dv{waitingThreads=WT},
+        ets:insert(dvstore, {X, V1}),
+            {noreply, State}
+      end
+    end;
 
 handle_call({wait, _X}, _From, State) ->
    %_V = wait_for_value(X, State#state.kv),
@@ -108,43 +108,43 @@ handle_cast({_}, State) ->
 
 
 %putLazy(Value, Next, Key, From) ->
-%	%io:format("Put lazy ~w~n",[Key]),
-%	V1 = #dv{value= Value, next =Next, bounded= true, lazy = true, creator = From},
-%	ets:insert(dvstore, {Key, V1}).
+%   %io:format("Put lazy ~w~n",[Key]),
+%   V1 = #dv{value= Value, next =Next, bounded= true, lazy = true, creator = From},
+%   ets:insert(dvstore, {Key, V1}).
 
 %Bind the key with the result (either by assignment or calculating)
 %executeLazy(Key, V) ->
-%	%io:format("Execute lazy ~w~n",[Key]),
-%	Value= V#dv.value,
-%	case Value of {F, Arg} ->
-%	   Result = F(Arg);
-%	   _ ->
-%	   Result = Value
-%	end,
-%	V1 = V#dv{value= Result, lazy = false, waitingThreads= []},
-%	ets:insert(dvstore, {Key, V1}),
-%	Result.
+%   %io:format("Execute lazy ~w~n",[Key]),
+%   Value= V#dv.value,
+%   case Value of {F, Arg} ->
+%      Result = F(Arg);
+%      _ ->
+%      Result = Value
+%   end,
+%   V1 = V#dv{value= Result, lazy = false, waitingThreads= []},
+%   ets:insert(dvstore, {Key, V1}),
+%   Result.
 
 put(Value, Next, Key) ->
-	[{_Key,V}] = ets:lookup(dvstore, Key),
-	Threads = V#dv.waitingThreads,
-	V1 = #dv{value= Value, next =Next, bounded= true,lazy=false},
-	ets:insert(dvstore, {Key, V1}),
-	replyToAll(Threads, Value, Next).
+    [{_Key,V}] = ets:lookup(dvstore, Key),
+    Threads = V#dv.waitingThreads,
+    V1 = #dv{value= Value, next =Next, bounded= true,lazy=false},
+    ets:insert(dvstore, {Key, V1}),
+    replyToAll(Threads, Value, Next).
 
 execute_and_put(F, Arg, Next, Key) ->
-	[{_Key,V}] = ets:lookup(dvstore, Key),
-	Threads = V#dv.waitingThreads,
-	Value = F(Arg),
-	V1 = #dv{value= Value, next =Next, bounded= true, lazy=false},
-	ets:insert(dvstore, {Key, V1}),
-	replyToAll(Threads, Value, Next).
+    [{_Key,V}] = ets:lookup(dvstore, Key),
+    Threads = V#dv.waitingThreads,
+    Value = F(Arg),
+    V1 = #dv{value= Value, next =Next, bounded= true, lazy=false},
+    ets:insert(dvstore, {Key, V1}),
+    replyToAll(Threads, Value, Next).
 
 replyToAll([], _Value, _Next) ->
-	ok;
+    ok;
 replyToAll([H|T], Value, Next) ->
-	gen_server:reply(H,{Value,Next}),
-	replyToAll(T, Value, Next).
+    gen_server:reply(H,{Value,Next}),
+    replyToAll(T, Value, Next).
 
 code_change(_, State, _) ->
     {ok, State}.
@@ -158,9 +158,9 @@ terminate(normal, _State) ->
 %wait_for_value(X, KV)->
 %       IsKey = derflow_map:is_key(X, KV),
 %       if IsKey == true ->
-%	 derflow_map:get(X, KV);
-%	true ->
-%    	  waitTime(500),
+%    derflow_map:get(X, KV);
+%   true ->
+%         waitTime(500),
 %          wait_for_value(X, KV)
 %       end.
 %
