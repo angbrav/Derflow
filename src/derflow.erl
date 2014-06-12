@@ -2,17 +2,17 @@
 -module(derflow).
 -behaviour(application).
 -export([start/2,
-	 stop/1,
-	 bind/2,
-	 bind/3,
-	 read/1,
-	 declare/0,
-	 thread/3,
-	 get_stream/1,
-	 byNeed/2,
-	 byNeed/3,
-	 waitNeeded/1,
-	 async_print_stream/1]).
+     stop/1,
+     bind/2,
+     bind/3,
+     read/1,
+     declare/0,
+     thread/3,
+     get_stream/1,
+     byNeed/2,
+     byNeed/3,
+     waitNeeded/1,
+     async_print_stream/1]).
 start(normal, _Args) ->
     derflow_sup:start_link().
 
@@ -49,17 +49,17 @@ get_stream(Stream)->
 async_print_stream(Stream)->
     io:format("Stream: ~w~n", [Stream]),
     case read(Stream) of
-	{nil, _} -> {ok, stream_read};
-	{Value, Next} -> 
-	    io:format("Value of stream: ~w~n",[Value]),
-	    async_print_stream(Next)
+    {nil, _} -> {ok, stream_read};
+    {Value, Next} -> 
+        io:format("Value of stream: ~w~n",[Value]),
+        async_print_stream(Next)
     end.
     
 %Internal functions
 
 internal_get_stream(Head, Output) ->
     case read(Head) of
-	{nil, _} -> Output;
-	{Value, Next} -> 
-	    internal_get_stream(Next, lists:append(Output, [Value]))
+    {nil, _} -> Output;
+    {Value, Next} -> 
+        internal_get_stream(Next, lists:append(Output, [Value]))
     end.
