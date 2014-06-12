@@ -14,18 +14,18 @@ test1() ->
 
 producer(Init, N, Output) ->
     if (N>0) ->
-	timer:sleep(1000),
-	{id, Next} = derflow:bind(Output, Init),
-	producer(Init + 1, N-1,  Next);
+    timer:sleep(1000),
+    {id, Next} = derflow:bind(Output, Init),
+    producer(Init + 1, N-1,  Next);
     true ->
-	derflow:bind(Output, nil)
+    derflow:bind(Output, nil)
     end.
 
 consumer(S1, F, S2) ->
     case derflow:read(S1) of
-	{nil, _} ->
-	    derflow:bind(S2, nil);
-	{Value, Next} ->
-	    {id, NextOutput} = derflow:bind(S2, F, Value),
-	    consumer(Next, F, NextOutput)
+    {nil, _} ->
+        derflow:bind(S2, nil);
+    {Value, Next} ->
+        {id, NextOutput} = derflow:bind(S2, F, Value),
+        consumer(Next, F, NextOutput)
     end.
